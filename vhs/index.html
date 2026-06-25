@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>vhs converter — rijt.net</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #ffffff;
+      font-family: 'Times New Roman', Times, serif;
+      min-height: 100vh;
+      color: #111;
+    }
+
+    #logo {
+      position: fixed;
+      top: 18px;
+      left: 22px;
+      width: 128px;
+      height: 128px;
+      z-index: 10;
+    }
+
+    #logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 80px 24px 60px;
+      gap: 28px;
+    }
+
+    h1 {
+      font-size: 13px;
+      font-weight: normal;
+      letter-spacing: 0.1em;
+      text-transform: lowercase;
+    }
+
+    #drop-zone {
+      width: 340px;
+      max-width: 100%;
+      border: 1px solid #111;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      color: #555;
+      transition: background 0.1s;
+      position: relative;
+    }
+
+    #drop-zone.drag-over { background: #f5f5f5; }
+
+    #drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    #preview-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+
+    #source-video { display: none; }
+
+    #vhs-canvas {
+      display: block;
+      max-width: min(640px, 90vw);
+      image-rendering: pixelated;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 340px;
+      max-width: 100%;
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+
+    .ctrl-row label { color: #333; }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 140px;
+      height: 1px;
+      background: #111;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      background: #111;
+      border-radius: 50%;
+    }
+
+    .val-label {
+      width: 28px;
+      text-align: right;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .section-label {
+      width: 100%;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: #aaa;
+      text-transform: lowercase;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+      margin-top: 2px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .tool-btn {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      color: #111;
+      text-decoration: none;
+      border: 1px solid #111;
+      padding: 5px 16px 4px;
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .tool-btn:hover { background: #111; color: #fff; }
+
+    .tool-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .tool-btn.recording {
+      background: #111;
+      color: #fff;
+    }
+
+    #status {
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: #888;
+      min-height: 16px;
+    }
+
+    #back-link {
+      position: fixed;
+      top: 22px;
+      right: 22px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: #111;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    #back-link:hover { border-bottom-color: #111; }
+
+    .change-btn {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      color: #aaa;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      align-self: flex-end;
+      margin-top: -8px;
+    }
+
+    .change-btn:hover { color: #111; }
+
+    #disclaimer {
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      color: #aaa;
+      text-align: center;
+      max-width: 340px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="logo">
+    <img src="../logo.gif" alt="rijt.net" onerror="this.style.display='none'" />
+  </div>
+
+  <a href="../index.html" id="back-link">← back</a>
+
+  <main>
+    <h1>vhs converter</h1>
+
+    <div id="drop-zone">
+      <input type="file" id="file-input" accept="video/*" />
+      drop video here or click to upload
+    </div>
+
+    <video id="source-video" muted playsinline crossorigin="anonymous"></video>
+
+    <div id="preview-wrap">
+      <div class="canvas-wrap">
+        <canvas id="vhs-canvas"></canvas>
+      </div>
+      <button class="change-btn" id="change-btn">change file</button>
+
+      <div class="controls">
+
+        <div class="section-label">scanlines</div>
+        <div class="ctrl-row">
+          <label>intensity</label>
+          <input type="range" id="sl-intensity" min="0" max="100" value="60" />
+          <span class="val-label" id="sl-val">60</span>
+        </div>
+        <div class="ctrl-row">
+          <label>size</label>
+          <input type="range" id="sl-size" min="1" max="8" value="2" />
+          <span class="val-label" id="sl-size-val">2</span>
+        </div>
+        <div class="ctrl-row">
+          <label>scroll speed</label>
+          <input type="range" id="sl-speed" min="0" max="100" value="0" />
+          <span class="val-label" id="sl-speed-val">0</span>
+        </div>
+
+        <div class="section-label">image</div>
+        <div class="ctrl-row">
+          <label>vignette</label>
+          <input type="range" id="vig-intensity" min="0" max="100" value="55" />
+          <span class="val-label" id="vig-val">55</span>
+        </div>
+        <div class="ctrl-row">
+          <label>bulge</label>
+          <input type="range" id="bulge-intensity" min="0" max="100" value="40" />
+          <span class="val-label" id="bulge-val">40</span>
+        </div>
+
+        <div class="section-label">signal</div>
+        <div class="ctrl-row">
+          <label>noise</label>
+          <input type="range" id="noise-intensity" min="0" max="100" value="30" />
+          <span class="val-label" id="noise-val">30</span>
+        </div>
+        <div class="ctrl-row">
+          <label>chroma shift</label>
+          <input type="range" id="chroma-intensity" min="0" max="100" value="25" />
+          <span class="val-label" id="chroma-val">25</span>
+        </div>
+        <div class="ctrl-row">
+          <label>color bleed</label>
+          <input type="range" id="bleed-intensity" min="0" max="100" value="35" />
+          <span class="val-label" id="bleed-val">35</span>
+        </div>
+
+      </div>
+
+      <div class="btn-row">
+        <button class="tool-btn" id="play-btn">play</button>
+        <button class="tool-btn" id="record-btn">export video</button>
+        <button class="tool-btn" id="export-btn">export frame</button>
+      </div>
+
+      <div id="status"></div>
+      <div id="disclaimer">exports as .webm — for mp4, open in vlc or convert at cloudconvert.com</div>
+    </div>
+  </main>
+
+  <script>
+    const dropZone   = document.getElementById('drop-zone');
+    const fileInput  = document.getElementById('file-input');
+    const video      = document.getElementById('source-video');
+    const canvas     = document.getElementById('vhs-canvas');
+    const ctx        = canvas.getContext('2d', { willReadFrequently: true });
+    const previewWrap= document.getElementById('preview-wrap');
+    const playBtn    = document.getElementById('play-btn');
+    const recordBtn  = document.getElementById('record-btn');
+    const exportBtn  = document.getElementById('export-btn');
+    const status     = document.getElementById('status');
+
+    const sliders = {
+      scanlines: document.getElementById('sl-intensity'),
+      slSize:    document.getElementById('sl-size'),
+      slSpeed:   document.getElementById('sl-speed'),
+      vignette:  document.getElementById('vig-intensity'),
+      bulge:     document.getElementById('bulge-intensity'),
+      noise:     document.getElementById('noise-intensity'),
+      chroma:    document.getElementById('chroma-intensity'),
+      bleed:     document.getElementById('bleed-intensity'),
+    };
+
+    const valEls = {
+      scanlines: document.getElementById('sl-val'),
+      slSize:    document.getElementById('sl-size-val'),
+      slSpeed:   document.getElementById('sl-speed-val'),
+      vignette:  document.getElementById('vig-val'),
+      bulge:     document.getElementById('bulge-val'),
+      noise:     document.getElementById('noise-val'),
+      chroma:    document.getElementById('chroma-val'),
+      bleed:     document.getElementById('bleed-val'),
+    };
+
+    Object.entries(sliders).forEach(([key, el]) => {
+      el.addEventListener('input', () => { valEls[key].textContent = el.value; });
+    });
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('video/')) loadVideo(file);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadVideo(fileInput.files[0]); });
+
+    function loadVideo(file) {
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.load();
+      video.addEventListener('loadedmetadata', () => {
+        const MAX_W = Math.min(640, window.innerWidth * 0.9);
+        const scale = Math.min(1, MAX_W / video.videoWidth);
+        canvas.width  = Math.round(video.videoWidth  * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        previewWrap.style.display = 'flex';
+        dropZone.style.display = 'none';
+        status.textContent = 'ready.';
+        renderFrame();
+      }, { once: true });
+    }
+
+    // Off-screen canvases
+    const tmp = document.createElement('canvas');
+    const tctx = tmp.getContext('2d', { willReadFrequently: true });
+    const bulgeCanvas = document.createElement('canvas');
+    const bctx = bulgeCanvas.getContext('2d');
+
+    function getParam(key) { return sliders[key].value / 100; }
+
+    // Scanline scroll offset
+    let slOffset = 0;
+
+    function renderFrame() {
+      if (!video.videoWidth) return;
+      const W = canvas.width, H = canvas.height;
+      tmp.width = W; tmp.height = H;
+      bulgeCanvas.width = W; bulgeCanvas.height = H;
+
+      // 1. Draw source frame
+      tctx.drawImage(video, 0, 0, W, H);
+      let imageData = tctx.getImageData(0, 0, W, H);
+      let d = imageData.data;
+
+      // 2. Color bleed
+      const bleed = getParam('bleed');
+      if (bleed > 0) {
+        const bleedPx = Math.round(bleed * 12);
+        for (let y = 0; y < H; y++) {
+          let rAcc = 0;
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            rAcc = rAcc * (1 - 1 / (bleedPx + 1)) + d[i] / (bleedPx + 1);
+            d[i] = Math.min(255, rAcc * (1 + bleed * 0.5));
+          }
+        }
+      }
+
+      // 3. Chroma shift
+      const chroma = getParam('chroma');
+      if (chroma > 0) {
+        const shift = Math.round(chroma * 12);
+        const tmp2 = new Uint8ClampedArray(d);
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            const rSrc = (y * W + Math.max(0, x - shift)) * 4;
+            const bSrc = (y * W + Math.min(W - 1, x + shift)) * 4;
+            d[i]     = tmp2[rSrc];
+            d[i + 2] = tmp2[bSrc + 2];
+          }
+        }
+      }
+
+      // 4. Noise
+      const noise = getParam('noise');
+      if (noise > 0) {
+        for (let i = 0; i < d.length; i += 4) {
+          const n = (Math.random() - 0.5) * noise * 80;
+          d[i]     = Math.max(0, Math.min(255, d[i]     + n));
+          d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+          d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+        }
+      }
+
+      // 5. Into bulge source canvas
+      bctx.putImageData(new ImageData(d, W, H), 0, 0);
+
+      // 6. Bulge
+      const bulge = getParam('bulge');
+      ctx.clearRect(0, 0, W, H);
+      if (bulge > 0.01) {
+        const srcData = bctx.getImageData(0, 0, W, H).data;
+        const outData = ctx.createImageData(W, H);
+        const od = outData.data;
+        const cx2 = W / 2, cy2 = H / 2;
+        const strength = bulge * 0.55;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const nx = (x - cx2) / cx2;
+            const ny = (y - cy2) / cy2;
+            const r2 = nx * nx + ny * ny;
+            const k = 1 + strength * r2;
+            const sx = nx / k * cx2 + cx2;
+            const sy = ny / k * cy2 + cy2;
+            const ix = Math.round(sx), iy = Math.round(sy);
+            const destIdx = (y * W + x) * 4;
+            if (ix >= 0 && ix < W && iy >= 0 && iy < H) {
+              const srcIdx = (iy * W + ix) * 4;
+              od[destIdx]     = srcData[srcIdx];
+              od[destIdx + 1] = srcData[srcIdx + 1];
+              od[destIdx + 2] = srcData[srcIdx + 2];
+              od[destIdx + 3] = srcData[srcIdx + 3];
+            }
+          }
+        }
+        ctx.putImageData(outData, 0, 0);
+      } else {
+        ctx.drawImage(bulgeCanvas, 0, 0);
+      }
+
+      // 7. Vignette
+      const vig = getParam('vignette');
+      if (vig > 0) {
+        const grad = ctx.createRadialGradient(W/2, H/2, H * 0.25, W/2, H/2, H * 0.85);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, `rgba(0,0,0,${vig * 0.88})`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // 8. Scanlines
+      const sl = getParam('scanlines');
+      const slSize = parseInt(sliders.slSize.value);
+      const slSpeed = sliders.slSpeed.value / 100;
+      const gap = slSize * 2;
+
+      // Advance offset each frame based on speed
+      slOffset = (slOffset + slSpeed * gap * 0.4) % gap;
+
+      if (sl > 0) {
+        ctx.save();
+        ctx.globalAlpha = sl * 0.55;
+        for (let y = -gap + Math.round(slOffset); y < H; y += gap) {
+          ctx.fillStyle = 'rgba(0,0,0,0.9)';
+          ctx.fillRect(0, y, W, slSize);
+        }
+        ctx.restore();
+      }
+    }
+
+    // ─── Playback ─────────────────────────────────────────────────────────────
+    let playing = false;
+    let rafId = null;
+    let idleRafId = null;
+
+    // Animate scanline scroll even when paused
+    function idleLoop() {
+      if (playing) return; // main loop handles it
+      const speed = sliders.slSpeed.value / 100;
+      if (speed > 0) renderFrame();
+      idleRafId = requestAnimationFrame(idleLoop);
+    }
+
+    sliders.slSpeed.addEventListener('input', () => {
+      cancelAnimationFrame(idleRafId);
+      if (!playing) idleLoop();
+    });
+
+    function loop() {
+      if (!playing) return;
+      renderFrame();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (!video.src) return;
+      if (playing) {
+        playing = false;
+        cancelAnimationFrame(rafId);
+        video.pause();
+        playBtn.textContent = 'play';
+        status.textContent = 'paused.';
+      } else {
+        playing = true;
+        video.play();
+        loop();
+        playBtn.textContent = 'pause';
+        status.textContent = 'playing…';
+      }
+    });
+
+    video.addEventListener('ended', () => {
+      playing = false;
+      cancelAnimationFrame(rafId);
+      playBtn.textContent = 'play';
+      // If recording, stop and trigger download automatically
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        status.textContent = 'saving…';
+        mediaRecorder.stop();
+      } else {
+        status.textContent = 'done.';
+      }
+    });
+
+    Object.values(sliders).forEach(el => {
+      el.addEventListener('input', () => { if (!playing) renderFrame(); });
+    });
+
+    // ─── Change file
+    document.getElementById('change-btn').addEventListener('click', () => {
+      // Stop everything
+      playing = false;
+      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(idleRafId);
+      video.pause();
+      video.src = '';
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+      mediaRecorder = null;
+      recordedChunks = [];
+      playBtn.textContent = 'play';
+      recordBtn.textContent = 'export video';
+      recordBtn.classList.remove('recording');
+      status.textContent = '';
+      fileInput.value = '';
+      previewWrap.style.display = 'none';
+      dropZone.style.display = 'block';
+    });
+
+    // ─── Export frame ─────────────────────────────────────────────────────────
+    exportBtn.addEventListener('click', () => {
+      renderFrame();
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'rijt-vhs-frame.png';
+      a.click();
+      status.textContent = 'frame saved.';
+    });
+
+    // ─── Export video ─────────────────────────────────────────────────────────
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    recordBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') return; // no manual stop
+
+      // Start from beginning
+      video.currentTime = 0;
+      recordedChunks = [];
+
+      const stream = canvas.captureStream(30);
+
+      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+        .find(m => MediaRecorder.isTypeSupported(m)) || '';
+
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: mimeType || 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'rijt-vhs.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+        recordBtn.textContent = 'export video';
+        recordBtn.classList.remove('recording');
+        status.textContent = 'video saved.';
+        playBtn.textContent = 'play';
+      };
+
+      mediaRecorder.start(100);
+      recordBtn.textContent = 'recording…';
+      recordBtn.classList.add('recording');
+
+      // Auto-play from start — download triggers automatically when video ends
+      playing = true;
+      video.play();
+      loop();
+      status.textContent = 'playing & recording — download will start when video ends.';
+    });
+  </script>
+</body>
+</html>
